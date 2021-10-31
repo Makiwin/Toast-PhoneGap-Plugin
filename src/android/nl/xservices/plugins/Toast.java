@@ -62,10 +62,7 @@ public class Toast extends CordovaPlugin {
       final JSONObject options = args.getJSONObject(0);
       final String msg = options.getString("message");
       final Spannable message = new SpannableString(msg);
-      message.setSpan(
-          new AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER),
-          0,
-          msg.length() - 1,
+      message.setSpan(new AlignmentSpan.Standard(Layout.Alignment.ALIGN_CENTER), 0, msg.length() - 1,
           Spannable.SPAN_INCLUSIVE_INCLUSIVE);
 
       final String duration = options.getString("duration");
@@ -89,14 +86,14 @@ public class Toast extends CordovaPlugin {
             hideAfterMs = Integer.parseInt(duration);
           }
           final android.widget.Toast toast = android.widget.Toast.makeText(
-              IS_AT_LEAST_LOLLIPOP ? cordova.getActivity().getWindow().getContext() : cordova.getActivity().getApplicationContext(),
-              message,
-              "short".equalsIgnoreCase(duration) ? android.widget.Toast.LENGTH_SHORT : android.widget.Toast.LENGTH_LONG
-          );
+              IS_AT_LEAST_LOLLIPOP ? cordova.getActivity().getWindow().getContext()
+                  : cordova.getActivity().getApplicationContext(),
+              message, "short".equalsIgnoreCase(duration) ? android.widget.Toast.LENGTH_SHORT
+                  : android.widget.Toast.LENGTH_LONG);
 
           if ("top".equals(position)) {
             toast.setGravity(GRAVITY_TOP, 0, BASE_TOP_BOTTOM_OFFSET + addPixelsY);
-          } else  if ("bottom".equals(position)) {
+          } else if ("bottom".equals(position)) {
             toast.setGravity(GRAVITY_BOTTOM, 0, BASE_TOP_BOTTOM_OFFSET - addPixelsY);
           } else if ("center".equals(position)) {
             toast.setGravity(GRAVITY_CENTER, 0, addPixelsY);
@@ -119,7 +116,7 @@ public class Toast extends CordovaPlugin {
 
             GradientDrawable shape = new GradientDrawable();
             shape.setCornerRadius(cornerRadius);
-            shape.setAlpha((int)(opacity * 255)); // 0-255, where 0 is an invisible background
+            shape.setAlpha((int) (opacity * 255)); // 0-255, where 0 is an invisible background
             shape.setColor(Color.parseColor(backgroundColor));
             toast.getView().setBackground(shape);
 
@@ -138,8 +135,10 @@ public class Toast extends CordovaPlugin {
             }
           }
 
-          // On Android >= 5 you can no longer rely on the 'toast.getView().setOnTouchListener',
-          // so created something funky that compares the Toast position to the tap coordinates.
+          // On Android >= 5 you can no longer rely on the
+          // 'toast.getView().setOnTouchListener',
+          // so created something funky that compares the Toast position to the tap
+          // coordinates.
           if (IS_AT_LEAST_LOLLIPOP) {
             getViewGroup().setOnTouchListener(new View.OnTouchListener() {
               @Override
@@ -147,17 +146,21 @@ public class Toast extends CordovaPlugin {
                 if (motionEvent.getAction() != MotionEvent.ACTION_DOWN) {
                   return false;
                 }
-                // on Android 11 getView is deprecated and return null the previous condition crashes on android
+                // on Android 11 getView is deprecated and return null the previous condition
+                // crashes on android
                 // if the user tap on the notification
-                if (!(mostRecentToast != null && Build.VERSION.SDK_INT < 30)) {
-                  // if getview is not null so mostRecentToast.getView().isShown() i can execute old code
-                  
-                    getViewGroup().setOnTouchListener(null);
-                    return true;
-                  }else {
-                    // getView null notify the touch event
-                    return returnTapEvent("touch", msg, data, callbackContext);
-                  }
+                if (mostRecentToast == null) {
+                  return returnTapEvent("touch", msg, data, callbackContext);
+                }
+
+                if (Build.VERSION.SDK_INT >= 30 || mostRecentToast.getView() == null) {
+                  return returnTapEvent("touch", msg, data, callbackContext);
+                }
+
+                // if getview is not null so mostRecentToast.getView().isShown() i can execute
+                // old code
+                if (mostRecentToast.getView().isShown()) {
+                  getViewGroup().setOnTouchListener(null);
                 }
 
                 float w = mostRecentToast.getView().getWidth();
@@ -186,8 +189,7 @@ public class Toast extends CordovaPlugin {
                 float tapX = motionEvent.getX();
                 float tapY = motionEvent.getY();
 
-                final boolean tapped = tapX >= startX && tapX <= endX &&
-                    tapY >= startY && tapY <= endY;
+                final boolean tapped = tapX >= startX && tapX <= endX && tapY >= startY && tapY <= endY;
 
                 return tapped && returnTapEvent("touch", msg, data, callbackContext);
               }
@@ -196,32 +198,44 @@ public class Toast extends CordovaPlugin {
             toast.getView().setOnTouchListener(new View.OnTouchListener() {
               @Override
               public boolean onTouch(View view, MotionEvent motionEvent) {
-                return motionEvent.getAction() == MotionEvent.ACTION_DOWN && returnTapEvent("touch", msg, data, callbackContext);
+                return motionEvent.getAction() == MotionEvent.ACTION_DOWN
+                    && returnTapEvent("touch", msg, data, callbackContext);
               }
             });
           }
           // trigger show every 2500 ms for as long as the requested duration
           _timer = new CountDownTimer(hideAfterMs, 2500) {
 
-  public void onTick(long millisUntilFinished) {
-    // see https://github.com/EddyVerbruggen/Toast-PhoneGap-Plugin/issues/116
-    // and https://github.com/EddyVerbruggen/Toast-PhoneGap-Plugin/issues/120
-    // if (!IS_AT_LEAST_PIE) {
-    // toast.show();
-    // }
+            public void onTick(long millisUntilFinished) {
+              // see https://github.com/EddyVerbruggen/Toast-PhoneGap-Plugin/issues/116
+              // and https://github.com/EddyVerbruggen/Toast-PhoneGap-Plugin/issues/120
+              // if (!IS_AT_LEAST_PIE) {
+              // toast.show();
+              // }
+            }
+
+            public void onFinish() {
+              returnTapEvent("hide", msg, data, callbackContext);
+              toast.cancel();
+            }
+          }.start();
+
+          mostRecentToast = toast;
+          toast.show();
+
+          PluginResult pr = new PluginResult(PluginResult.Status.OK);
+          pr.setKeepCallback(true);
+          callbackContext.sendPluginResult(pr);
+        }
+      });
+
+      return true;
+    } else {
+      callbackContext
+          .error("toast." + action + " is not a supported function. Did you mean '" + ACTION_SHOW_EVENT + "'?");
+      return false;
+    }
   }
-
-  public void onFinish() {
-    returnTapEvent("hide", msg, data, callbackContext);
-    toast.cancel();
-  }}.start();
-
-  mostRecentToast=toast;toast.show();
-
-  PluginResult pr = new PluginResult(PluginResult.Status.OK);pr.setKeepCallback(true);callbackContext.sendPluginResult(pr);
-  }});
-
-  return true;}else{callbackContext.error("toast."+action+" is not a supported function. Did you mean '"+ACTION_SHOW_EVENT+"'?");return false;}}
 
   private void hide() {
     if (mostRecentToast != null) {
